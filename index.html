@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Zip</title>
+<style>
+:root{--bg:#fbf8f5;--card:#fff;--ink:#262322;--grid:#e6e0d9;--path:#e8743b;--mut:#8a817a;--btn:#fff;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#1c1a19;--card:#262322;--ink:#f3eee9;--grid:#3a3532;--mut:#a39a92;--btn:#2e2a28}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:system-ui,-apple-system,"Segoe UI",sans-serif;display:flex;flex-direction:column;align-items:center;padding:16px}
+.top{width:min(92vw,440px);display:flex;justify-content:space-between;align-items:flex-end;margin-bottom:12px}
+.lbl{font-size:11px;letter-spacing:.08em;color:var(--mut);font-weight:700}
+#time{font-family:Georgia,serif;font-size:44px;font-weight:700;line-height:1;font-variant-numeric:tabular-nums}
+.best{text-align:right;font-size:13px;color:var(--mut)}
+.best b{display:block;font-size:20px;color:var(--ink);font-family:Georgia,serif}
+#board{position:relative;width:min(92vw,440px);aspect-ratio:1;background:var(--card);border-radius:14px;box-shadow:0 4px 18px #0002;touch-action:none;user-select:none;-webkit-user-select:none;overflow:hidden}
+#cells{position:absolute;inset:0;display:grid;grid-template-columns:repeat(8,1fr);grid-template-rows:repeat(8,1fr)}
+.c{border:1px solid var(--grid);display:flex;align-items:center;justify-content:center;font-weight:800;font-size:clamp(14px,4.4vw,20px)}
+svg{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}
+.num{position:relative;z-index:2}
+.c.n span{display:flex;align-items:center;justify-content:center;width:70%;aspect-ratio:1;border-radius:50%;background:var(--ink);color:var(--bg);position:relative;z-index:2}
+.row{display:flex;gap:10px;width:min(92vw,440px);margin-top:16px}
+button{flex:1;padding:14px;border-radius:12px;border:1px solid var(--grid);background:var(--btn);color:var(--ink);font-size:16px;font-weight:600;cursor:pointer}
+#msg{margin-top:14px;color:var(--mut);font-size:14px;text-align:center;min-height:20px}
+#win{position:fixed;inset:0;background:#000a;display:none;align-items:center;justify-content:center;z-index:9}
+#win.show{display:flex}
+#win div{background:var(--card);padding:28px 32px;border-radius:18px;text-align:center}
+#win h2{margin:0 0 6px;font-family:Georgia,serif;font-size:28px}
+#win p{margin:4px 0;color:var(--mut)}#win .big{font-size:40px;color:var(--ink);font-family:Georgia,serif;font-weight:700}
+#win button{margin-top:16px;width:100%}
+#reg{position:fixed;inset:0;background:var(--bg);display:flex;align-items:center;justify-content:center;z-index:10;padding:16px}#reg.hide{display:none}#reg div{width:min(92vw,380px);text-align:center}#reg h1{font-family:Georgia,serif;margin:0 0 6px}#reg p{color:var(--mut);margin:0 0 18px}#reg input{width:100%;padding:14px;margin-bottom:10px;border-radius:12px;border:1px solid var(--grid);background:var(--card);color:var(--ink);font-size:16px}#reg button{width:100%}#pe{color:#c0392b;min-height:20px;font-size:14px}
+</style></head><body>
+<div class="top">
+  <div><div class="lbl">TIME</div><div id="time">0:00.0</div></div>
+  <div class="best"><span class="lbl">BEST</span><b id="best">–</b></div>
+</div>
+<div id="board"><div id="cells"></div>
+<svg viewBox="0 0 8 8"><polyline id="line" fill="none" stroke="#2f7de1" stroke-width=".42" stroke-linecap="round" stroke-linejoin="round" opacity=".9"/><g id="walls" stroke="#e11d1d" stroke-width=".13" stroke-linecap="round"></g></svg></div>
+<div class="row"><button id="undo">↶ Undo</button><button id="clear">🗑 Clear</button></div>
+<div class="row" style="margin-top:10px"><button id="giveup">🏳 Give up</button></div>
+<div id="msg">Drag from 1 through the numbers in order. Fill every box.</div>
+<button id="dl" style="display:none;margin-top:10px;width:min(92vw,440px);flex:none">⬇ Download results (CSV)</button>
+<div id="reg"><div><h1>Zip Challenge</h1><p>You have 5 minutes. The timer starts when you touch 1.</p><input id="pn" placeholder="Your name" maxlength="60"><input id="pd" placeholder="Department" maxlength="60"><div id="pe"></div><button id="go">Start</button></div></div>
+<div id="bye" style="display:none;position:fixed;inset:0;background:var(--bg);align-items:center;justify-content:center;z-index:20;text-align:center;padding:16px"><div><h1 style="font-family:Georgia,serif;font-size:36px;margin:0 0 8px">Thank you!</h1><p style="color:var(--mut)">Your result has been recorded. You can close this page now.</p></div></div>
+<div id="win"><div><h2 id="wh">Solved!</h2><div class="big" id="wt"></div><p id="wb"></p><p id="wn" style="color:var(--ink);font-weight:600">📸 Take a screenshot for reference</p><div id="lb2" style="width:min(76vw,340px);max-height:38vh;overflow:auto;margin-top:14px;font-size:14px;text-align:left"></div><button id="again">Thank you</button></div></div>
+<script>
+const N=8;
+const nums={"1,5":5,"1,1":10,"1,5x":0};
+const NUMS=[[1,0,5],[1,1,10],[1,5,9],[1,7,6],[2,4,1],[3,4,11],[4,3,12],[5,3,3],[6,0,4],[6,2,2],[6,6,8],[6,7,7]];
+const numAt={};NUMS.forEach(([r,c,v])=>numAt[r*N+c]=v);
+const MAX=Math.max(...NUMS.map(x=>x[2]));
+// walls: [orientation, fixed, from, to] in grid units
+const V=[[1,1,7],[7,1,7],[6,2,4],[2,4,6]];
+const H=[[2,4,6],[6,2,4]];
+const wallsG=document.getElementById('walls');
+V.forEach(([x,a,b])=>wallsG.insertAdjacentHTML('beforeend',`<line x1="${x}" y1="${a}" x2="${x}" y2="${b}"/>`));
+H.forEach(([y,a,b])=>wallsG.insertAdjacentHTML('beforeend',`<line x1="${a}" y1="${y}" x2="${b}" y2="${y}"/>`));
+function blocked(a,b){
+  const r1=Math.floor(a/N),c1=a%N,r2=Math.floor(b/N),c2=b%N;
+  if(r1===r2){const x=Math.max(c1,c2);return V.some(([vx,y0,y1])=>vx===x&&r1>=y0&&r1<y1);}
+  const y=Math.max(r1,r2);return H.some(([hy,x0,x1])=>hy===y&&c1>=x0&&c1<x1);
+}
+const cells=document.getElementById('cells');
+for(let i=0;i<N*N;i++){const d=document.createElement('div');d.className='c'+(numAt[i]?' n':'');if(numAt[i])d.innerHTML=`<span>${numAt[i]}</span>`;cells.appendChild(d);}
+const board=document.getElementById('board'),line=document.getElementById('line');
+let path=[],drag=false,t0=null,tick=null,done=false;
+const $=id=>document.getElementById(id);
+const fmt=ms=>{const s=ms/1000;return Math.floor(s/60)+':'+(s%60).toFixed(1).padStart(4,'0')};
+function load(){try{return +localStorage.getItem('zipBest')||null}catch(e){return null}}
+function save(v){try{localStorage.setItem('zipBest',v)}catch(e){}}
+let best=load();$('best').textContent=best?fmt(best):'–';
+function nextNum(){let m=0;path.forEach(i=>{if(numAt[i]>m)m=numAt[i]});return m+1}
+function draw(){
+  line.setAttribute('points',path.map(i=>`${i%N+.5},${Math.floor(i/N)+.5}`).join(' '));
+  if(path.length===1)line.setAttribute('points',`${path[0]%N+.5},${Math.floor(path[0]/N)+.5} ${path[0]%N+.5},${Math.floor(path[0]/N)+.5}`);
+}
+function startTimer(){if(t0)return;t0=performance.now();tick=setInterval(()=>{const m=performance.now()-t0;if(m>=300000){giveUp("Time's up");return}$('time').textContent=fmt(m)},50)}
+function cellAt(e){
+  const r=board.getBoundingClientRect(),x=(e.clientX-r.left)/r.width,y=(e.clientY-r.top)/r.height;
+  if(x<0||y<0||x>=1||y>=1)return -1;
+  // ignore corners so diagonal drags don't jitter
+  const fx=x*N%1,fy=y*N%1;if(fx<.12||fx>.88||fy<.12||fy>.88)return -2;
+  return Math.floor(y*N)*N+Math.floor(x*N);
+}
+function step(i){
+  if(i<0||done)return;
+  const last=path[path.length-1];
+  if(i===last)return;
+  const k=path.indexOf(i);
+  if(k>=0){path.length=k+1;draw();return}
+  const d=Math.abs(i-last);
+  if(!((d===1&&Math.floor(i/N)===Math.floor(last/N))||d===N))return;
+  if(blocked(last,i))return;
+  if(numAt[i]&&numAt[i]!==nextNum())return;
+  path.push(i);draw();check();
+}
+function check(){
+  if(path.length===N*N&&nextNum()===MAX+1){
+    done=true;clearInterval(tick);const ms=performance.now()-t0;
+    $('time').textContent=fmt(ms);$('wt').textContent=fmt(ms);$('wh').textContent='Solved!';
+    if(!best||ms<best){best=ms;save(ms);$('wb').textContent='🏆 New best time!'}else $('wb').textContent='Best: '+fmt(best);
+    $('best').textContent=fmt(best);$('win').classList.add('show');record(ms,true);
+  }
+}
+board.addEventListener('pointerdown',e=>{
+  if(done||!player)return;const i=cellAt(e);if(i<0)return;
+  if(!path.length){if(numAt[i]!==1)return;path=[i];startTimer();draw();drag=true;board.setPointerCapture(e.pointerId);return}
+  if(path.includes(i)){path.length=path.indexOf(i)+1;draw();drag=true;board.setPointerCapture(e.pointerId)}
+});
+board.addEventListener('pointermove',e=>{if(drag)step(cellAt(e))});
+['pointerup','pointercancel'].forEach(t=>board.addEventListener(t,()=>drag=false));
+function reset(){path=[];draw();line.setAttribute('points','');clearInterval(tick);t0=null;done=false;$('time').textContent='0:00.0';$('win').classList.remove('show')}
+$('clear').onclick=reset;$('again').onclick=()=>{$('win').classList.remove('show');$('bye').style.display='flex';try{window.close()}catch(e){}};
+function giveUp(why){if(done)return;done=true;drag=false;clearInterval(tick);$('time').textContent='5:00.0';$('wh').textContent=why;$('wt').textContent='5:00.0';$('wb').textContent='Time recorded as 5 minutes';$('win').classList.add('show');record(300000,false)}
+$('giveup').onclick=()=>giveUp('Gave up');
+$('undo').onclick=()=>{if(done)return;if(path.length>1){path.pop();draw()}else reset()};
+let player=null,submitted=false,db=null,uid=null,rows=[];
+$('go').onclick=()=>{const n=$('pn').value.trim(),d=$('pd').value.trim();if(!n||!d){$('pe').textContent='Please enter both name and department';return}player={name:n.slice(0,60),dept:d.slice(0,60)};$('reg').classList.add('hide')};
+const FORM={action:'PASTE_FORM_ACTION_URL',name:'entry.0000000001',dept:'entry.0000000002',time:'entry.0000000003',status:'entry.0000000004'};
+async function record(ms,ok){const w=$('wb');if(submitted){w.textContent+=' \u00b7 Already submitted';return}
+if(FORM.action.startsWith('PASTE')){w.textContent+=' \u00b7 Not saved (form not set up)';return}
+try{const p=new URLSearchParams();p.set(FORM.name,player.name);p.set(FORM.dept,player.dept);p.set(FORM.time,fmt(ms));p.set(FORM.status,ok?'Completed':'Not completed');
+await fetch(FORM.action,{method:'POST',mode:'no-cors',body:p});submitted=true;w.textContent+=' \u00b7 Submitted \u2714'}catch(e){w.textContent+=' \u00b7 Could not submit'}}
+function lb(){const s=[...rows].sort((a,b)=>(b.ok-a.ok)||(a.ms-b.ms));const l=$('lb2');l.textContent='';if(!s.length)return;const h=document.createElement('div');h.className='lbl';h.textContent='LEADERBOARD';l.appendChild(h);s.forEach((r,i)=>{const d=document.createElement('div');d.style.cssText='display:flex;justify-content:space-between;gap:12px;padding:6px 0;border-bottom:1px solid var(--grid)'+(player&&r.name===player.name&&r.dept===player.dept?';font-weight:700;color:var(--path)':'');d.textContent=(i+1)+'. '+r.name+' ('+r.dept+')';const t=document.createElement('span');t.textContent=fmt(r.ms)+(r.ok?'':' ✗');d.appendChild(t);l.appendChild(d)})}
+function csv(){const q=v=>{v=String(v);if(/^[=+\-@]/.test(v))v="'"+v;return '"'+v.replace(/"/g,'""')+'"'};return ['Name,Department,Time,Completed'].concat([...rows].sort((a,b)=>(b.ok-a.ok)||(a.ms-b.ms)).map(r=>[q(r.name),q(r.dept),fmt(r.ms),r.ok?'Yes':'No'].join(','))).join('\n')}
+
+</script></body></html>
